@@ -1,0 +1,186 @@
+---
+title: "Gross Sales Across Books Genres"
+author: 'Tolu-L'
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+  word_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+```{r setup}
+# Load the relevant packages
+
+library(tidyverse)
+library(gridExtra)
+library(emmeans)
+library(knitr)
+
+options(width=100)
+```
+
+![](Average Sales per Genre.png)
+
+From the Figure above, it is evident that Young Adult books is estimated to have the highest level of gross sales on average and Non-fiction is estimated to have the least level of gross sales on average. The mean of Young Adult books is 874,487.6 95% CI [841,635.5, 907,339.7]. The mean of Thriller books is 765,728.9 95% CI [726,438.1, 805,019.7]. The mean of Non-Fiction books is 722,871.9 95% CI [686,977, 758,766.5].
+
+The loss is -42,856.96 95% CI [-103,591.2, 17,877.29]in the level of gross sales of Non-fiction when compared to Thriller books. The loss is 151,615.69 95% CI [-212,349.9, -90,881.43] level of gross sales of Non-fiction when compared to Young Adult books, and a loss in the level of gross sales of Thriller when compared to Young Adult is -108758.73 95% CI [-169,493, -48,024.47].
+
+NHST: There is a significant mean in the level of gross sales of 722,871.9 for Non-fiction books,t(133)=39.834, p<0.0001.There is a significant mean in the level of gross sales for of 765,728.9 for Thriller books,t(133)=38.548, p<0.0001, and for Young adult books, there is a significant mean in the level of gross sales of  874,487.6,t(133)=52.651, p<0.0001
+
+Using ANOVA:
+
+After conducting ANOVA, the left panel of  shows the mean level of gross sales for the book genre. Young Adult has the highest average sales, followed by thriller and Non-fiction has the lowest average sale of the book genre categories. The right panel shows the estimates of the difference in average sales for the different book genre. 
+
+# Question 2 Section 1
+![](Effect of the marketing budget and season upon gross takings.png)
+
+From Fig above, we can see the impact of marketing budget and retailer featured on gross sales.
+
+From the analysis below, we can deduce that:
+
+Marketing budget significantly predicts the gross sales of the books.The gross sales increases by  1.373e+00 for every extra percentage point of marketing_budget, this increase is significant t(398)=7.29, p=1.73e-12 . Gross sales increases by 1.37 95% CI [1.002327e+00 -  1.743227] for every extra marketing budget 
+
+Gross sales reduces by 64,772.39 95% CI [-1.050501e+05 - 24,494] for every extra retailer featured. The gross sales reduces by 6.477e+04 for every extra percentage point of retailer featured, this reduction is significant t(398)=-3.161, p=0.002
+
+Adding production budget does not improve the accyracy of the prediction for gross sales. The gross sales increases by 2.067e-01 for every extra percentage point of production budget, this increase is not significantly different from zero, t(398)=1.35, p=0.18. Gross sales increases by 0.206 95% CI [-9.550165e-02-  5.089137e-01] for every extra production budget
+
+---
+
+```{r}
+# Import the data
+Book.Sales <- read.csv("books_sales.csv")
+
+# Save Genre and Retailer_Featured as factor
+Book.Sales$genre<- as.factor(Book.Sales$genre)
+Book.Sales$retailer_featured <- as.factor(Book.Sales$retailer_featured)
+
+# Visualise the distribution of the gross sales across the different book genre
+
+ggplot(Book.Sales) + geom_histogram(aes(gross_sales,..density.., fill=genre), bins = 30) + facet_grid(.~genre) + labs(x = "Gross Sales", y = "Density", color="Genre") + coord_flip() +theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+```
+
+```{r}
+#Create new table for each genre
+Non.Fiction <- subset(Book.Sales, genre == "non_fiction")
+
+Thriller <- subset(Book.Sales, genre == "thriller")
+
+Young.Adult <- subset(Book.Sales, genre == "Young_Adult")
+
+#Calculate summary statistics
+Non.Fiction.Summ <- Non.Fiction %>% summarise(Mean = mean(gross_sales, na.rm = TRUE), SD = sd(gross_sales, na.rm = TRUE), N = n())
+
+Thriller.Summ <- Thriller %>% summarise(Mean = mean(gross_sales, na.rm = TRUE), SD = sd(gross_sales, na.rm = TRUE), N = n())
+
+Young.Adult.Summ <- Young.Adult %>% summarise(Mean = mean(gross_sales, na.rm = TRUE), SD = sd(gross_sales, na.rm = TRUE), N = n())
+
+# Calculate the t.test for each book genre
+t.test(Non.Fiction$gross_sales, mu=0)
+
+t.test(Thriller$gross_sales, mu=0)
+
+t.test(Young.Adult$gross_sales, mu=0)
+
+#Using Linear Model
+ 
+(m.gross.by.genre <- lm(gross_sales~genre, data =Book.Sales))
+
+(m.gross.by.genre.emm <- emmeans(m.gross.by.genre, ~genre))
+
+Contrast <- confint(pairs(m.gross.by.genre.emm))
+
+#Plot a graph showing the average sales per genre
+Avg.Sales <- ggplot(summary(m.gross.by.genre.emm), aes(x=genre, y=emmean, ymin=lower.CL, ymax=upper.CL)) +
+    geom_point() + geom_linerange() +
+    labs(y="Gross Sales", x= "Genre", subtitle = "Error bars are 95% CIs", title = "Average Sales per Genre")
+
+#Save the graph
+ggsave("Average Sales per Genre.png", width = 8, height = 6)
+
+# For comparison, plot a graph showing the difference between Average Sales 
+Diff.Avg.Sales <- ggplot(Contrast, aes(x=contrast, y=estimate, ymin=lower.CL, ymax=upper.CL)) + 
+  geom_point() + geom_linerange() + 
+  labs(y="Differences between Gross Sales", x="Contrast", subtitle = "Error bars are 95% CIs", title = "Difference between Average Sales") + geom_hline(yintercept = 0, lty=2)
+
+grid.arrange(Avg.Sales, Diff.Avg.Sales)
+
+```
+
+```{r}
+# Group the Book Sales by Genre
+Genre.Book.Sales <- Book.Sales %>% group_by(genre) %>% summarise(gross_sales)
+
+Genre.Book.Sales %>% 
+  group_by(genre)%>%
+ summarise (n())
+
+# Using One-Way ANOVA
+m.gross.by.genre.1 <- lm(gross_sales~genre, data=Genre.Book.Sales)
+
+anova(m.gross.by.genre)
+
+summary(m.gross.by.genre)
+
+head(cbind(as.data.frame(Genre.Book.Sales), model.matrix(m.gross.by.genre)))
+
+# Design Matrix
+# Anova through multiple regression
+(m.gross.by.genre.emm.1 <- emmeans(m.gross.by.genre, ~genre))
+
+# We can also make contrasts between the book genre means
+(m.gross.by.genre.pairs <- pairs(m.gross.by.genre.emm.1))
+
+# To use an estimation approach 
+(m.gross.by.genre.pairs <-confint(m.gross.by.genre.emm.1))
+
+p.average.sales <-ggplot(summary(m.gross.by.genre.emm.1), aes(x=genre, y=emmean, ymin=lower.CL, ymax=upper.CL))+ geom_point()+geom_linerange() +labs(x= "Book Genre", y="Average Sales", subtitle= "Error Bars are Extent of 95% CIs")
+
+p.contrasts <-ggplot(m.gross.by.genre.pairs, aes(x=genre, y=emmean, ymin=lower.CL, ymax=upper.CL))+ geom_point()+geom_linerange() +geom_hline(yintercept=0, lty=2)+labs(x= "Contrast", y="Difference in Average Sales", subtitle= "Error Bars are Extent of 95% CIs")
+
+grid.arrange(p.average.sales, p.contrasts, ncol=2)
+```
+
+# Question 2 Section 2
+
+```{r}
+
+#Plot a Scatter plot showing the effect of the marketing budget and being featured by the retailer upon gross sales
+
+ggplot(Book.Sales) +geom_point(aes(x=marketing_budget, y=gross_sales, color=retailer_featured)) + labs(x = "Marketing Budget", y= "Gross Sales", color= "Retailer Featured", title = "Effect of the marketing budget and Retailer Featured upon gross sales")
+
+ggsave("Effect of the marketing budget and season upon gross takings.png", width = 8, height = 6)
+
+#Create new table for each retailer featured
+
+Retailer.Featured <- subset(Book.Sales, retailer_featured == "Featured")
+
+Retailer.Standard <- subset(Book.Sales, retailer_featured == "Standard")
+
+# regression using marketing budget and retailer featured
+m.gross.sales.by.marketing.featured <- (lm(gross_sales~marketing_budget+retailer_featured,data=Book.Sales))
+
+summary(m.gross.sales.by.marketing.featured)
+
+cbind(coef(m.gross.sales.by.marketing.featured), confint(m.gross.sales.by.marketing.featured))
+
+
+# Regression including production budget
+
+m.gross.sales.by.marketing.featured.production <- (lm(gross_sales~marketing_budget+retailer_featured+production_budget,data=Book.Sales))
+summary(m.gross.sales.by.marketing.featured.production)
+
+cbind(coef(m.gross.sales.by.marketing.featured.production), confint( m.gross.sales.by.marketing.featured.production))
+
+#Calculate Anova to check the effect of increasing the marketing budget,
+Res.aov<- aov(gross_sales ~ marketing_budget +retailer_featured+ marketing_budget:retailer_featured, data =Book.Sales)
+
+summary(Res.aov)
+
+#Calculate Anova including the production budget 
+Res.aov.production<- aov(gross_sales ~ marketing_budget +retailer_featured + production_budget, data = Book.Sales)
+summary(Res.aov.production)
+
+```
+
